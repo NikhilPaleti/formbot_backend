@@ -94,6 +94,16 @@ app.put('/updateWorkspace/:id', async (req, res) => {
         const { id } = req.params;
         const { sharedWith } = req.body; // Expecting updated sharedWith array
 
+        // Check if all emails in sharedWith are registered users
+        const registeredEmails = [];
+        for (let i = 0; i < sharedWith.length; i++) {
+            const user = await User.findOne({ email: sharedWith[i].email }).select('email');
+            if (!user) {
+                return res.status(400).json({ error: `Email ${sharedWith[i].email} is not a registered user` });
+            }
+            registeredEmails.push(user.email); // Collect registered emails if needed
+        }
+
         const updatedWorkspace = await Workspace.findOneAndUpdate(
             { name: id }, // Use the workspace name instead of ID
             { $addToSet: { sharedWith: { $each: sharedWith } } }, // Append new values to sharedWith
@@ -103,7 +113,7 @@ app.put('/updateWorkspace/:id', async (req, res) => {
 
         res.json({ message: 'Workspace updated', workspace: updatedWorkspace });
     } catch (error) {
-        console.log(error.message)
+        console.log(error.message);
         res.status(500).json({ error: error.message });
     }
 });
