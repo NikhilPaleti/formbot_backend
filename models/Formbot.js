@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const formbotSchema = new mongoose.Schema({
-    name: { type: String, required: true, unique: true },
+    name: { type: String, required: true},
     commands: [{
         type: { type: String, required: true },
         content: { type: String }
