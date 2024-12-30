@@ -59,7 +59,7 @@ app.post('/register', async (req, res) => {
         const newWorkspace = new Workspace({
             name: `${username}_workspace`,
             sharedWith: [{ email: newUser.email, access: 'edit' }], // User can access their own workspace. Obviously.
-            folders: [],
+            folders: ["root"],
         });
 
         await newWorkspace.save(); 
@@ -266,26 +266,23 @@ app.post('/createFormbot', async (req, res) => {
 });
 
 // Modify Formbot
-app.put('/modifyFormbot/:id', async (req, res) => {
+app.put('/modifyFormbot/:workspaceId/:folderName/:formbotId', async (req, res) => {
     try {
+        const { workspaceId, folderName, formbotId } = req.params;
         const { name, commands, opened, filled_forms } = req.body;
-        // console.log(name, commands, opened, filled_forms);
-        const { id } = req.params;  
-        // REMEMBER. id == old name, name == new name.
-        
-        // Find the existing formbot by name (id)
-        const existingFormbot = await Formbot.findOne({ name: id });
+
+        // Find the existing formbot by workspace, folder, and formbot ID
+        const existingFormbot = await Formbot.findOne({
+            workspace: workspaceId,
+            folderName: folderName,
+            name: formbotId
+        });
         if (!existingFormbot) return res.status(404).send('Formbot not found');
 
-        // Check if the new name is different from the existing name
-        if (name && name !== existingFormbot.name) {
-            existingFormbot.name = name;
-        }
-
-        if (commands !== undefined) existingFormbot.commands = commands;
-
+        // Update properties if provided
+        if (name) existingFormbot.name = name;
+        if (commands) existingFormbot.commands = commands;
         if (opened !== undefined) existingFormbot.opened = opened;
-
         if (filled_forms && Array.isArray(filled_forms)) {
             existingFormbot.filled_forms.push(filled_forms); 
             // existingFormbot.filled_forms.push(...filled_forms); // Diff way to append. This "replaces"
@@ -294,7 +291,7 @@ app.put('/modifyFormbot/:id', async (req, res) => {
         const updatedFormbot = await existingFormbot.save();
         res.json({ message: 'Formbot updated', updatedFormbot });
     } catch (error) {
-        console.log('/modifyFormbot/:id', error.message);
+        console.log('/modifyFormbot/:workspaceId/:folderName/:formbotId', error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -334,14 +331,20 @@ app.get('/fetchFormbots', async (req, res) => {
 });
 
 // Fetch Formbot by ID
-app.get('/fetchFormbot/:id', async (req, res) => {
+app.get('/fetchFormbot/:workspaceId/:folderName/:formbotId', async (req, res) => {
     try {
-        const formbot = await Formbot.findOne({ name: req.params.id });
+        const { workspaceId, folderName, formbotId } = req.params;
+
+        const formbot = await Formbot.findOne({
+            workspace: workspaceId,
+            folderName: folderName,
+            name: formbotId
+        });
         if (!formbot) return res.status(404).send('Formbot not found');
 
         res.json(formbot); 
     } catch (error) {
-        console.log('/fetchFormbot/:id', error.message);
+        console.log('/fetchFormbot/:workspaceId/:folderName/:formbotId', error.message);
         res.status(500).json({ error: error.message });
     }
 });
