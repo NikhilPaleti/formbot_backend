@@ -107,7 +107,7 @@ app.put('/updateWorkspace/:id', async (req, res) => {
             { $addToSet: { sharedWith: { $each: sharedWith } } }, 
             { new: true }
         );
-        if (!updatedWorkspace) return res.status(404).send('Workspace not found');
+        if (!updatedWorkspace) return res.status(404).json({error: `Workspace ${id} not found!`});
 
         res.json({ message: 'Workspace updated', workspace: updatedWorkspace });
     } catch (error) {
@@ -121,10 +121,10 @@ app.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
-        if (!user) return res.status(404).send('User not found');
+        if (!user) return res.status(404).json({error: `User with email ${email} not found!`});
 
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(400).send('Invalid credentials');
+        if (!isMatch) return res.status(400).json({error: 'Invalid Credentials'});
 
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
         res.json({ token });
@@ -164,7 +164,7 @@ app.get('/alluserdetails', async (req, res) => {
         }
 
         const user = await User.findOne(query).select('username email'); 
-        if (!user) return res.status(404).send('User not found');
+        if (!user) return res.status(404).json({error: `${username} ain't found mate!`});
 
         res.json(user);
     } catch (error) {
@@ -181,10 +181,10 @@ app.post('/addFolder/:id/folder', async (req, res) => {
 
         // Check if the folder name already exists in the workspace
         const workspace = await Workspace.findOne({ name: id });
-        if (!workspace) return res.status(404).send('Workspace not found');
+        if (!workspace) return res.status(404).json({error: `Could not find workspace ${id}`});
 
         if (workspace.folders.includes(name)) {
-            return res.status(400).json({ error: 'Folder name already exists in this workspace' });
+            return res.status(400).json({ error: `Folder ${name} already exists in this workspace` });
         }
 
         const updatedWorkspace = await Workspace.findOneAndUpdate(
@@ -193,7 +193,7 @@ app.post('/addFolder/:id/folder', async (req, res) => {
             { new: true } 
         );
 
-        if (!updatedWorkspace) return res.status(404).send('Workspace not found');
+        if (!updatedWorkspace) return res.status(404).json({error: `Could not fird the workspace ${id}`});
 
         res.json({ message: 'Folder added', workspace: updatedWorkspace });
     } catch (error) {
@@ -208,7 +208,7 @@ app.get('/fetchFolders/:id', async (req, res) => {
         const { id } = req.params;
         
         const workspace = await Workspace.findOne({ name: id }).select('folders');
-        if (!workspace) return res.status(404).send('Workspace not found');
+        if (!workspace) return res.status(404).json({error: `Could not find workspace ${id}`});
         res.json(workspace.folders);
     } catch (error) {
         console.log('/fetchFolders/:id', error.message)
@@ -227,7 +227,7 @@ app.delete('/deleteFolder/:id/folder/:folderName', async (req, res) => {
             { new: true }
         );
 
-        if (!updatedWorkspace) return res.status(404).send('Workspace not found');
+        if (!updatedWorkspace) return res.status(404).json({error: `Could not find workspace ${id}`});
 
         res.json({ message: 'Folder deleted', workspace: updatedWorkspace });
     } catch (error) {
@@ -277,7 +277,7 @@ app.put('/modifyFormbot/:workspaceId/:folderName/:formbotId', async (req, res) =
             folderName: folderName,
             name: formbotId
         });
-        if (!existingFormbot) return res.status(404).send('Formbot not found');
+        if (!existingFormbot) return res.status(404).json({error: `${formbotId} formbot not found`});
 
         // Update properties if provided
         if (name) existingFormbot.name = name;
@@ -300,7 +300,7 @@ app.put('/modifyFormbot/:workspaceId/:folderName/:formbotId', async (req, res) =
 app.delete('/deleteFormbot/:id', async (req, res) => {
     try {
         const formbot = await Formbot.findOneAndDelete({ name: req.params.id }); 
-        if (!formbot) return res.status(404).send('Formbot not found');
+        if (!formbot) return res.status(404).json({error: `${req.params.id} formbot not found`});
 
 
         res.json({ message: 'Formbot deleted' });
@@ -340,7 +340,7 @@ app.get('/fetchFormbot/:workspaceId/:folderName/:formbotId', async (req, res) =>
             folderName: folderName,
             name: formbotId
         });
-        if (!formbot) return res.status(404).send('Formbot not found');
+        if (!formbot) return res.status(404).json({error: `${formbotId} formbot not found`});
 
         res.json(formbot); 
     } catch (error) {
@@ -356,7 +356,7 @@ app.put('/updateUser', async (req, res) => {
         // console.log("oldusername", oldUsername,"oldemails", oldEmail,"newusername", newUsername,"newemail", newEmail, oldPassword, newPassword)
 
         const user = await User.findOne({ $or: [{ username: oldUsername }, { email: oldEmail }] });
-        if (!user) return res.status(404).send('User not found');
+        if (!user) return res.status(404).json({error: `${oldUsername} user not found`});
 
         // To ensure unique username
         if (newUsername) {
@@ -388,7 +388,7 @@ app.put('/updateUser', async (req, res) => {
         // Update password if old and new passwords are provided
         if (oldPassword && newPassword) {
             const isMatch = await bcrypt.compare(oldPassword, user.password);
-            if (!isMatch) return res.status(400).send('Old password does not match');
+            if (!isMatch) return res.status(400).json({error: 'Old password does not match'});
 
             const salt = await bcrypt.genSalt(10);
             user.password = await bcrypt.hash(newPassword, salt);
