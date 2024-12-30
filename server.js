@@ -87,45 +87,6 @@ app.post('/register', async (req, res) => {
 //     }
 // });
 
-// Update Workspace
-app.put('/updateWorkspace/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { sharedWith } = req.body;
-
-        const registeredEmails = [];
-        for (let i = 0; i < sharedWith.length; i++) {
-            const user = await User.findOne({ email: sharedWith[i].email }).select('email');
-            if (!user) {
-                return res.status(400).json({ error: `Email ${sharedWith[i].email} is not a registered user` });
-            }
-            registeredEmails.push(user.email); 
-        }
-
-        // Check for existing users in sharedWith
-        const workspace = await Workspace.findOne({ name: id });
-        if (!workspace) return res.status(404).json({ error: `Workspace ${id} not found!` });
-
-        for (let i = 0; i < sharedWith.length; i++) {
-            const existingUser = workspace.sharedWith.find(user => user.email === sharedWith[i].email);
-            if (existingUser) {
-                return res.status(400).json({ error: `User with email ${sharedWith[i].email} already exists in the workspace` });
-            }
-        }
-
-        const updatedWorkspace = await Workspace.findOneAndUpdate(
-            { name: id }, 
-            { $addToSet: { sharedWith: { $each: sharedWith } } }, 
-            { new: true }
-        );
-
-        res.json({ message: 'Workspace updated', workspace: updatedWorkspace });
-    } catch (error) {
-        console.log("/updateWorkspace/:id", error.message);
-        res.status(500).json({ error: error.message });
-    }
-});
-
 // Login User
 app.post('/login', async (req, res) => {
     try {
@@ -179,6 +140,112 @@ app.get('/alluserdetails', async (req, res) => {
         res.json(user);
     } catch (error) {
         console.log("/alluserdetails", error.message)
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update User Details
+app.put('/updateUser', async (req, res) => {
+    try {
+        const { oldUsername, oldEmail, newUsername, newEmail, oldPassword, newPassword } = req.body;
+        // console.log("oldusername", oldUsername,"oldemails", oldEmail,"newusername", newUsername,"newemail", newEmail, oldPassword, newPassword)
+
+        const user = await User.findOne({ $or: [{ username: oldUsername }, { email: oldEmail }] });
+        if (!user) return res.status(404).json({ error: `${oldUsername} user not found` });
+
+        // To ensure unique username
+        if (newUsername) {
+            const existingUsername = await User.findOne({ username: newUsername });
+            if (existingUsername) {
+                return res.status(400).json({ error: `Username ${newUsername} already exists` });
+            }
+            
+            user.username = newUsername;
+            await Workspace.updateMany(
+                { name: `${oldUsername}_workspace` }, 
+                { $set: { name: `${newUsername}_workspace` } } 
+            );
+            
+            await Formbot.updateMany(
+                { workspace: `${oldUsername}_workspace` }, 
+                { $set: { workspace: `${newUsername}_workspace` } } 
+            );
+        }
+
+        // Ensure unique email
+        if (newEmail) {
+            const existingEmail = await User.findOne({ email: newEmail });
+            if (existingEmail) {
+                return res.status(400).json({ error: `Email ${newEmail} already exists` });
+            }
+            user.email = newEmail;
+            await Workspace.updateMany(
+                { 'sharedWith.email': oldEmail },
+                { $set: { 'sharedWith.$.email': newEmail } }
+            );
+        }
+
+        // Update password if old and new passwords are provided
+        if (oldPassword && newPassword) {
+            const isMatch = await bcrypt.compare(oldPassword, user.password);
+            if (!isMatch) return res.status(400).json({ error: 'Old password does not match' });
+
+            const salt = await bcrypt.genSalt(10);
+            user.password = await bcrypt.hash(newPassword, salt);
+        }
+
+        await user.save(); 
+        res.json({ message: 'User updated successfully', user });
+    } catch (error) {
+        console.log("/updateUser", error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update Workspace
+app.put('/updateWorkspace/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { sharedWith } = req.body;
+
+        const registeredEmails = [];
+        for (let i = 0; i < sharedWith.length; i++) {
+            const user = await User.findOne({ email: sharedWith[i].email }).select('email');
+            if (!user) {
+                return res.status(400).json({ error: `Email ${sharedWith[i].email} is not a registered user` });
+            }
+            registeredEmails.push(user.email); 
+        }
+
+        // Check for existing users in sharedWith
+        const workspace = await Workspace.findOne({ name: id });
+        if (!workspace) return res.status(404).json({ error: `Workspace ${id} not found!` });
+
+        for (let i = 0; i < sharedWith.length; i++) {
+            const existingUser = workspace.sharedWith.find(user => user.email === sharedWith[i].email);
+            if (existingUser) {
+                // If the user exists but with a different permission, update the permission
+                if (existingUser.access !== sharedWith[i].access) {
+                    existingUser.access = sharedWith[i].access; // Update permission
+                } else {
+                    return res.status(400).json({ error: `User with email ${sharedWith[i].email} already has the same permission` });
+                }
+            } else {
+                // If the user does not exist, add them to the sharedWith array
+                workspace.sharedWith.push(sharedWith[i]);
+            }
+        }
+
+        // const updatedWorkspace = await Workspace.findOneAndUpdate(
+        //     { name: id }, 
+        //     { $addToSet: { sharedWith: { $each: sharedWith } } }, 
+        //     { new: true }
+        // );
+        const updatedWorkspace = await workspace.save();
+        
+        res.json({ message: 'Workspace updated', workspace: updatedWorkspace });
+    } catch (error) {
+        console.log("/updateWorkspace/:id", error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -359,63 +426,6 @@ app.get('/fetchFormbot/:workspaceId/:folderName/:formbotId', async (req, res) =>
     }
 });
 
-// Update User Details
-app.put('/updateUser', async (req, res) => {
-    try {
-        const { oldUsername, oldEmail, newUsername, newEmail, oldPassword, newPassword } = req.body;
-        // console.log("oldusername", oldUsername,"oldemails", oldEmail,"newusername", newUsername,"newemail", newEmail, oldPassword, newPassword)
-
-        const user = await User.findOne({ $or: [{ username: oldUsername }, { email: oldEmail }] });
-        if (!user) return res.status(404).json({ error: `${oldUsername} user not found` });
-
-        // To ensure unique username
-        if (newUsername) {
-            const existingUsername = await User.findOne({ username: newUsername });
-            if (existingUsername) {
-                return res.status(400).json({ error: `Username ${newUsername} already exists` });
-            }
-            
-            user.username = newUsername;
-            await Workspace.updateMany(
-                { name: `${oldUsername}_workspace` }, 
-                { $set: { name: `${newUsername}_workspace` } } 
-            );
-            
-            await Formbot.updateMany(
-                { workspace: `${oldUsername}_workspace` }, 
-                { $set: { workspace: `${newUsername}_workspace` } } 
-            );
-        }
-
-        // Ensure unique email
-        if (newEmail) {
-            const existingEmail = await User.findOne({ email: newEmail });
-            if (existingEmail) {
-                return res.status(400).json({ error: `Email ${newEmail} already exists` });
-            }
-            user.email = newEmail;
-            await Workspace.updateMany(
-                { 'sharedWith.email': oldEmail },
-                { $set: { 'sharedWith.$.email': newEmail } }
-            );
-        }
-
-        // Update password if old and new passwords are provided
-        if (oldPassword && newPassword) {
-            const isMatch = await bcrypt.compare(oldPassword, user.password);
-            if (!isMatch) return res.status(400).json({ error: 'Old password does not match' });
-
-            const salt = await bcrypt.genSalt(10);
-            user.password = await bcrypt.hash(newPassword, salt);
-        }
-
-        await user.save(); 
-        res.json({ message: 'User updated successfully', user });
-    } catch (error) {
-        console.log("/updateUser", error.message);
-        res.status(500).json({ error: error.message });
-    }
-});
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
