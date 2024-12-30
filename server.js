@@ -356,7 +356,7 @@ app.put('/updateUser', async (req, res) => {
         // console.log("oldusername", oldUsername,"oldemails", oldEmail,"newusername", newUsername,"newemail", newEmail, oldPassword, newPassword)
 
         const user = await User.findOne({ $or: [{ username: oldUsername }, { email: oldEmail }] });
-        if (!user) return res.status(404).json({error: `${oldUsername} user not found`});
+        if (!user) return res.status(404).json({ error: `${oldUsername} user not found` });
 
         // To ensure unique username
         if (newUsername) {
@@ -369,6 +369,11 @@ app.put('/updateUser', async (req, res) => {
             await Workspace.updateMany(
                 { name: `${oldUsername}_workspace` }, 
                 { $set: { name: `${newUsername}_workspace` } } 
+            );
+            
+            await Formbot.updateMany(
+                { workspace: `${oldUsername}_workspace` }, 
+                { $set: { workspace: `${newUsername}_workspace` } } 
             );
         }
 
@@ -388,7 +393,7 @@ app.put('/updateUser', async (req, res) => {
         // Update password if old and new passwords are provided
         if (oldPassword && newPassword) {
             const isMatch = await bcrypt.compare(oldPassword, user.password);
-            if (!isMatch) return res.status(400).json({error: 'Old password does not match'});
+            if (!isMatch) return res.status(400).json({ error: 'Old password does not match' });
 
             const salt = await bcrypt.genSalt(10);
             user.password = await bcrypt.hash(newPassword, salt);
