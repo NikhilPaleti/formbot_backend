@@ -102,12 +102,22 @@ app.put('/updateWorkspace/:id', async (req, res) => {
             registeredEmails.push(user.email); 
         }
 
+        // Check for existing users in sharedWith
+        const workspace = await Workspace.findOne({ name: id });
+        if (!workspace) return res.status(404).json({ error: `Workspace ${id} not found!` });
+
+        for (let i = 0; i < sharedWith.length; i++) {
+            const existingUser = workspace.sharedWith.find(user => user.email === sharedWith[i].email);
+            if (existingUser) {
+                return res.status(400).json({ error: `User with email ${sharedWith[i].email} already exists in the workspace` });
+            }
+        }
+
         const updatedWorkspace = await Workspace.findOneAndUpdate(
             { name: id }, 
             { $addToSet: { sharedWith: { $each: sharedWith } } }, 
             { new: true }
         );
-        if (!updatedWorkspace) return res.status(404).json({error: `Workspace ${id} not found!`});
 
         res.json({ message: 'Workspace updated', workspace: updatedWorkspace });
     } catch (error) {
