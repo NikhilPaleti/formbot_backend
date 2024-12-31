@@ -24,8 +24,8 @@ mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTop
     .then(() => console.log('MongoDB connected'))
     .catch(err => console.error(err));
 
-// Testing if sheez even works
-app.get('/', (req, res) => {
+// Repurposing the test endpoint to just wake the backend
+app.get('/wake', (req, res) => {
     res.send('Hello from the backend!');
 });
 
@@ -298,6 +298,8 @@ app.delete('/deleteFolder/:id/folder/:folderName', async (req, res) => {
     try {
         const { id, folderName } = req.params;
 
+        await Formbot.deleteMany({ workspace: id, folderName: folderName }); // Comment this one line to ensure formbots aren't deleted.
+
         const updatedWorkspace = await Workspace.findOneAndUpdate(
             { name: id },
             { $pull: { folders: folderName } }, 
@@ -306,7 +308,7 @@ app.delete('/deleteFolder/:id/folder/:folderName', async (req, res) => {
 
         if (!updatedWorkspace) return res.status(404).json({error: `Could not find workspace ${id}`});
 
-        res.json({ message: 'Folder deleted', workspace: updatedWorkspace });
+        res.json({ message: 'Folder deleted and associated formbots removed', folderName }); 
     } catch (error) {
         console.log("/deleteFolder/:id/folder/:folderName", error.message)
         res.status(500).json({ error: error.message });
