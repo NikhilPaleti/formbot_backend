@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
     origin: true, // Allow all origins
     methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed methods
-    credentials: true 
+    credentials: true
 }));
 app.use(express.json());
 
@@ -39,10 +39,10 @@ app.post('/register', async (req, res) => {
         const existingEmail = await User.findOne({ email });
 
         if (existingUser) {
-            return res.status(400).json({ error: Username>> `${existingUser.username} already exists` });
+            return res.status(400).json({ error: Username >> `${existingUser.username} already exists` });
         }
-        if (existingEmail){
-            return res.status(400).json({ error: Email>> `${existingEmail.email} already exists` });
+        if (existingEmail) {
+            return res.status(400).json({ error: Email >> `${existingEmail.email} already exists` });
         }
 
         const salt = await bcrypt.genSalt(10);
@@ -54,7 +54,7 @@ app.post('/register', async (req, res) => {
             password: hashedPassword
         });
         await newUser.save();
-        
+
         // Create a workspace for the new user
         const newWorkspace = new Workspace({
             name: `${username}_workspace`,
@@ -62,7 +62,7 @@ app.post('/register', async (req, res) => {
             folders: ["root"],
         });
 
-        await newWorkspace.save(); 
+        await newWorkspace.save();
         res.status(201).json({ message: 'User registered and workspace created' });
         // console.log('USER REGISTERED AND WORKSPACE CREATED');
     } catch (error) {
@@ -92,10 +92,10 @@ app.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
-        if (!user) return res.status(404).json({error: `User with email ${email} not found!`});
+        if (!user) return res.status(404).json({ error: `User with email ${email} not found!` });
 
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(400).json({error: 'Invalid Credentials'});
+        if (!isMatch) return res.status(400).json({ error: 'Invalid Credentials' });
 
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
         res.json({ token });
@@ -108,10 +108,10 @@ app.post('/login', async (req, res) => {
 // Fetch Workspaces
 app.get('/fetchWorkspaces', async (req, res) => {
     try {
-        const { email } = req.query; 
+        const { email } = req.query;
 
         const workspaces = await Workspace.find({
-            'sharedWith.email': email 
+            'sharedWith.email': email
         });
 
         res.json(workspaces);
@@ -124,8 +124,8 @@ app.get('/fetchWorkspaces', async (req, res) => {
 // Get User Details
 app.get('/alluserdetails', async (req, res) => {
     try {
-        const { username, email } = req.query; 
-        
+        const { username, email } = req.query;
+
         const query = {};
         if (username) {
             query.username = username;
@@ -134,8 +134,8 @@ app.get('/alluserdetails', async (req, res) => {
             query.email = email;
         }
 
-        const user = await User.findOne(query).select('username email'); 
-        if (!user) return res.status(404).json({error: `${username} ain't found mate!`});
+        const user = await User.findOne(query).select('username email');
+        if (!user) return res.status(404).json({ error: `${username} ain't found mate!` });
 
         res.json(user);
     } catch (error) {
@@ -159,16 +159,16 @@ app.put('/updateUser', async (req, res) => {
             if (existingUsername) {
                 return res.status(400).json({ error: `Username ${newUsername} already exists` });
             }
-            
+
             user.username = newUsername;
             await Workspace.updateMany(
-                { name: `${oldUsername}_workspace` }, 
-                { $set: { name: `${newUsername}_workspace` } } 
+                { name: `${oldUsername}_workspace` },
+                { $set: { name: `${newUsername}_workspace` } }
             );
-            
+
             await Formbot.updateMany(
-                { workspace: `${oldUsername}_workspace` }, 
-                { $set: { workspace: `${newUsername}_workspace` } } 
+                { workspace: `${oldUsername}_workspace` },
+                { $set: { workspace: `${newUsername}_workspace` } }
             );
         }
 
@@ -194,7 +194,7 @@ app.put('/updateUser', async (req, res) => {
             user.password = await bcrypt.hash(newPassword, salt);
         }
 
-        await user.save(); 
+        await user.save();
         res.json({ message: 'User updated successfully', user });
     } catch (error) {
         console.log("/updateUser", error.message);
@@ -214,26 +214,25 @@ app.put('/updateWorkspace/:id', async (req, res) => {
             if (!user) {
                 return res.status(400).json({ error: `Email ${sharedWith[i].email} is not a registered user` });
             }
-            registeredEmails.push(user.email); 
+            registeredEmails.push(user.email);
         }
 
-        // Check for existing users in sharedWith
         const workspace = await Workspace.findOne({ name: id });
         if (!workspace) return res.status(404).json({ error: `Workspace ${id} not found!` });
-
-        for (let i = 0; i < sharedWith.length; i++) {
-            const existingUser = workspace.sharedWith.find(user => user.email === sharedWith[i].email);
-            if (existingUser) {
-                // If the user exists but with a different permission, update the permission
-                if (existingUser.access !== sharedWith[i].access) {
-                    existingUser.access = sharedWith[i].access; // Update permission
-                } else {
-                    return res.status(400).json({ error: `User with email ${sharedWith[i].email} already has the same permission` });
-                }
+        const existingUserIndex = workspace.sharedWith.findIndex(user => user.email === sharedWith[0].email);
+        if (existingUserIndex === 0) {
+            return res.status(400).json({ error: `You simply don't fuck with the owner!` });
+        }
+        const existingUser = workspace.sharedWith.find(user => user.email === sharedWith[0].email);
+        console.log(existingUserIndex)
+        if (existingUser) {
+            if (existingUser.access !== sharedWith[0].access) {
+                existingUser.access = sharedWith[0].access;
             } else {
-                // If the user does not exist, add them to the sharedWith array
-                workspace.sharedWith.push(sharedWith[i]);
+                return res.status(400).json({ error: `User with email ${sharedWith[0].email} already has the same permission` });
             }
+        } else {
+            workspace.sharedWith.push(sharedWith[i]);
         }
 
         // const updatedWorkspace = await Workspace.findOneAndUpdate(
@@ -242,7 +241,7 @@ app.put('/updateWorkspace/:id', async (req, res) => {
         //     { new: true }
         // );
         const updatedWorkspace = await workspace.save();
-        
+
         res.json({ message: 'Workspace updated', workspace: updatedWorkspace });
     } catch (error) {
         console.log("/updateWorkspace/:id", error.message);
@@ -253,24 +252,24 @@ app.put('/updateWorkspace/:id', async (req, res) => {
 // Add Folder
 app.post('/addFolder/:id/folder', async (req, res) => {
     try {
-        const { id } = req.params; 
-        const { name } = req.body; 
+        const { id } = req.params;
+        const { name } = req.body;
 
         // Check if the folder name already exists in the workspace
         const workspace = await Workspace.findOne({ name: id });
-        if (!workspace) return res.status(404).json({error: `Could not find workspace ${id}`});
+        if (!workspace) return res.status(404).json({ error: `Could not find workspace ${id}` });
 
         if (workspace.folders.includes(name)) {
             return res.status(400).json({ error: `Folder ${name} already exists in this workspace` });
         }
 
         const updatedWorkspace = await Workspace.findOneAndUpdate(
-            { name: id }, 
-            { $push: { folders: name } }, 
-            { new: true } 
+            { name: id },
+            { $push: { folders: name } },
+            { new: true }
         );
 
-        if (!updatedWorkspace) return res.status(404).json({error: `Could not fird the workspace ${id}`});
+        if (!updatedWorkspace) return res.status(404).json({ error: `Could not fird the workspace ${id}` });
 
         res.json({ message: 'Folder added', workspace: updatedWorkspace });
     } catch (error) {
@@ -283,9 +282,9 @@ app.post('/addFolder/:id/folder', async (req, res) => {
 app.get('/fetchFolders/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         const workspace = await Workspace.findOne({ name: id }).select('folders');
-        if (!workspace) return res.status(404).json({error: `Could not find workspace ${id}`});
+        if (!workspace) return res.status(404).json({ error: `Could not find workspace ${id}` });
         res.json(workspace.folders);
     } catch (error) {
         console.log('/fetchFolders/:id', error.message)
@@ -302,13 +301,13 @@ app.delete('/deleteFolder/:id/folder/:folderName', async (req, res) => {
 
         const updatedWorkspace = await Workspace.findOneAndUpdate(
             { name: id },
-            { $pull: { folders: folderName } }, 
+            { $pull: { folders: folderName } },
             { new: true }
         );
 
-        if (!updatedWorkspace) return res.status(404).json({error: `Could not find workspace ${id}`});
+        if (!updatedWorkspace) return res.status(404).json({ error: `Could not find workspace ${id}` });
 
-        res.json({ message: 'Folder deleted and associated formbots removed', folderName }); 
+        res.json({ message: 'Folder deleted and associated formbots removed', folderName });
     } catch (error) {
         console.log("/deleteFolder/:id/folder/:folderName", error.message)
         res.status(500).json({ error: error.message });
@@ -331,9 +330,9 @@ app.post('/createFormbot', async (req, res) => {
             commands,
             workspace: workspaceId,
             folderName,
-            opened: opened || 0, 
+            opened: opened || 0,
             // filledForms: filledForms || 0, // Not necessary...... Until it might be
-            filled_forms: filled_forms || [] 
+            filled_forms: filled_forms || []
         });
         await formbot.save();
 
@@ -356,14 +355,14 @@ app.put('/modifyFormbot/:workspaceId/:folderName/:formbotId', async (req, res) =
             folderName: folderName,
             name: formbotId
         });
-        if (!existingFormbot) return res.status(404).json({error: `${formbotId} formbot not found`});
+        if (!existingFormbot) return res.status(404).json({ error: `${formbotId} formbot not found` });
 
         // Update properties if provided
         if (name) existingFormbot.name = name;
         if (commands) existingFormbot.commands = commands;
         if (opened !== undefined) existingFormbot.opened = opened;
         if (filled_forms && Array.isArray(filled_forms)) {
-            existingFormbot.filled_forms.push(filled_forms); 
+            existingFormbot.filled_forms.push(filled_forms);
             // existingFormbot.filled_forms.push(...filled_forms); // Diff way to append. This "replaces"
         }
 
@@ -378,8 +377,8 @@ app.put('/modifyFormbot/:workspaceId/:folderName/:formbotId', async (req, res) =
 // Delete Formbot
 app.delete('/deleteFormbot/:id', async (req, res) => {
     try {
-        const formbot = await Formbot.findOneAndDelete({ name: req.params.id }); 
-        if (!formbot) return res.status(404).json({error: `${req.params.id} formbot not found`});
+        const formbot = await Formbot.findOneAndDelete({ name: req.params.id });
+        if (!formbot) return res.status(404).json({ error: `${req.params.id} formbot not found` });
 
 
         res.json({ message: 'Formbot deleted' });
@@ -393,11 +392,11 @@ app.delete('/deleteFormbot/:id', async (req, res) => {
 app.get('/fetchFormbots', async (req, res) => {
     try {
         const { workspaceId, folderName } = req.query;
-        
-       
-        const formbots = await Formbot.find({ 
-            workspace: workspaceId, 
-            folderName: folderName 
+
+
+        const formbots = await Formbot.find({
+            workspace: workspaceId,
+            folderName: folderName
         });
         // console.log("formbots", formbots)
 
@@ -419,9 +418,9 @@ app.get('/fetchFormbot/:workspaceId/:folderName/:formbotId', async (req, res) =>
             folderName: folderName,
             name: formbotId
         });
-        if (!formbot) return res.status(404).json({error: `${formbotId} formbot not found`});
+        if (!formbot) return res.status(404).json({ error: `${formbotId} formbot not found` });
 
-        res.json(formbot); 
+        res.json(formbot);
     } catch (error) {
         console.log('/fetchFormbot/:workspaceId/:folderName/:formbotId', error.message);
         res.status(500).json({ error: error.message });
@@ -431,5 +430,5 @@ app.get('/fetchFormbot/:workspaceId/:folderName/:formbotId', async (req, res) =>
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
-}); 
+});
 
